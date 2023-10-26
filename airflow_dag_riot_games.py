@@ -37,27 +37,17 @@ def get_match_details(match_id, region, riot_api_key):
     
     return match_details
 
-# def get_riot_data(**kwargs):
-#     summoner_name="boosblues"
-#     region="na1"
-#     url = f"https://{region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/{summoner_name}"
-#     riot_api_key = os.environ.get('RIOT_API_KEY')
-    
-#     # riot key error check
-#     if not riot_api_key:
-#         raise ValueError("RIOT_API_KEY environment variable is not set")
-    
-#     headers = {
-#         "X-Riot-Token": riot_api_key
-#     }
-#     response = requests.get(url, headers=headers)
-    
-#     # Error checking
-#     if response.status_code != 200:
-#         raise Exception(f"Failed to get data from Riot API. Status Code: {response.status_code}")
-    
-#     data = response.json()
-#     return data
+def get_riot_data(**kwargs):
+    summoner_name = "boosblues"
+    region = "na1"
+    riot_api_key = os.environ.get('RIOT_API_KEY')
+
+    # riot key error check
+    if not riot_api_key:
+        raise ValueError("RIOT_API_KEY environment variable is not set")
+
+    puuid = get_summoner_id(summoner_name, riot_api_key)
+    match_ids = get_matchlist(puuid, riot_api_key)
 
 def process_riot_data(**kwargs):
     task_instance = kwargs['ti']
@@ -66,17 +56,6 @@ def process_riot_data(**kwargs):
     print(data)
 
 # START ---------------------------------------------------------------------------------------------------
-
-summoner_name = "boosblues"
-region = "na1"
-riot_api_key = os.environ.get('RIOT_API_KEY')
-
-# riot key error check
-if not riot_api_key:
-    raise ValueError("RIOT_API_KEY environment variable is not set")
-
-puuid = get_summoner_id(summoner_name, riot_api_key)
-match_ids = get_matchlist(puuid, riot_api_key)
 
 for match_id in match_ids:
     match_details = get_match_details(match_id, riot_api_key)
@@ -99,7 +78,7 @@ with DAG(
     tages=['example']
 ) as dag:
     
-    get_riot_data_task = PythonOperator(
+    get_riot_match_history_data_task = PythonOperator(
         task_id='get_riot_data_task',
         python_callable=get_riot_data,
         dag=dag,
