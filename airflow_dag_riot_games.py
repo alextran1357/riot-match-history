@@ -1,6 +1,8 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
 from datetime import datetime, timedelta
+import json
 import requests
 import os
 
@@ -155,5 +157,13 @@ with DAG(
         dag=dag,
     )
     
-    get_riot_data_task >> process_riot_data_task
+    t2 = BashOperator(
+        task_id='copy_file_wsl_win',
+        depends_on_past=False,
+        bash_command='cp /home/yourusername/somefile.txt /mnt/c/Users/YourWindowsUsername/Desktop/',
+         # override the retries parameter with 3
+        retries=3,
+    )
+    
+    get_riot_match_history_data_task >> process_riot_data_task >> t2
     
