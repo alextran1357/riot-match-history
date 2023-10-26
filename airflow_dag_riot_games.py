@@ -33,8 +33,8 @@ def get_match_details(match_id, region, riot_api_key):
     
     if response.status_code != 200:
         raise Exception(f"Failed to get match details. Status Code: {response.status_code}")
-    match_details = response.json()
     
+    match_details = response.json()
     return match_details
 
 def get_riot_data(**kwargs):
@@ -48,6 +48,75 @@ def get_riot_data(**kwargs):
 
     puuid = get_summoner_id(summoner_name, riot_api_key)
     match_ids = get_matchlist(puuid, riot_api_key)
+    
+    # need to handle some way of duplicate matches if i rerun the dag
+    for match_id in match_ids:
+        match_details = get_match_details(match_id, riot_api_key)
+        # Grab specific data
+        '''
+        check puuid
+        
+        GAME STATS -------------------------------------
+        gameCreation - long
+        win - boolean
+        gameEndedInSurrender - boolean
+        timePlayed - int
+        gameMode - string
+        lane - string
+        role - string
+        
+        CHAMPION STATS -------------------------------------
+        championName - string
+        champLevel - int
+        
+        KILL/ASSIST/DEATH STATS -------------------------------------
+        kills - int
+        assists - int
+        deaths - int
+        totalTimeSpentDead - int
+        doubleKills - int
+        tripleKills - int
+        quadraKills - int
+        pentaKills - int
+        totalMinionsKilled - int
+        totalAllyJungleMinionsKilled - int
+        dragonKills - int
+        baronKills - int
+        largestMultiKill - int
+        largestKillingSpree - int
+        
+        DAMAGE STATS -------------------------------------
+        physicalDamageDealt - int
+        physicalDamageDealtToChampions - int
+        physicalDamageTaken - int
+        magicDamageDealt - int	
+        magicDamageDealtToChampions - int	
+        magicDamageTaken - int	
+        trueDamageDealt - int
+        trueDamageDealtToChampions - int
+        trueDamageTaken - int
+        totalDamageDealt - int
+        totalDamageDealtToChampions - int
+        totalDamageTaken - int
+        totalHeal - int
+        totalHealsOnTeammates - int
+        totalTimeCCDealt - int
+        largestCriticalStrike - int
+        damageSelfMitigated - int
+        damageDealtToBuildings - int
+        damageDealtToObjectives - int
+        damageDealtToTurrets - int
+        
+        MISC STATS -------------------------------------
+        goldEarned - int
+        goldSpent - int
+        itemsPurchased - int
+        visionScore - int
+        visionWardsBoughtInGame - int
+        sightWardsBoughtInGame - int
+        wardsKilled - int
+        wardsPlaced - int
+        '''
 
 def process_riot_data(**kwargs):
     task_instance = kwargs['ti']
@@ -56,10 +125,6 @@ def process_riot_data(**kwargs):
     print(data)
 
 # START ---------------------------------------------------------------------------------------------------
-
-for match_id in match_ids:
-    match_details = get_match_details(match_id, riot_api_key)
-    # Process match_details as needed
 
 with DAG(
     'riot_games_api',
