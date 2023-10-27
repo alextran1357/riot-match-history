@@ -62,7 +62,11 @@ def get_riot_data(**kwargs):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     
-    current_batch = []
+    game_stats_list = []
+    champion_stats_list = []
+    kda_stats_list = []
+    damage_stats_list = []
+    misc_stats_list = []
     
     # need to handle some way of duplicate matches if i rerun the dag
     for match_id in match_ids:
@@ -104,10 +108,12 @@ def get_riot_data(**kwargs):
                     gameMode = grab_data_with_logging(logger, participant_data, 'gameMode')
                     lane = grab_data_with_logging(logger, participant_data, 'lane')
                     role = grab_data_with_logging(logger, participant_data, 'role')
+                    game_stats = (win, gameEndedInSurrender, timePlayed, gameMode, lane, role)
                     
                     # CHAMPION STATS -------------------------------------
                     championName = grab_data_with_logging(logger, participant_data, 'championName')
                     champLevel = grab_data_with_logging(logger, participant_data, 'champLevel')
+                    champion_stats = (championName, champLevel)
                     
                     # KILL/ASSIST/DEATH STATS -------------------------------------
                     kills = grab_data_with_logging(logger, participant_data, 'kills')
@@ -124,6 +130,9 @@ def get_riot_data(**kwargs):
                     baronKills = grab_data_with_logging(logger, participant_data, 'baronKills')
                     largestMultiKill = grab_data_with_logging(logger, participant_data, 'largestMultiKill')
                     largestKillingSpree = grab_data_with_logging(logger, participant_data, 'largestKillingSpree')
+                    kda_stats = (kills, assists, deaths, totalTimeSpentDead, doubleKills, tripleKills, quadraKills, pentaKills, 
+                                 totalMinionsKilled, totalAllyJungleMinionsKilled, dragonKills, baronKills, largestMultiKill, 
+                                 largestKillingSpree)
                     
                     # DAMAGE STATS -------------------------------------
                     physicalDamageDealt = grab_data_with_logging(logger, participant_data, 'physicalDamageDealt')
@@ -146,8 +155,12 @@ def get_riot_data(**kwargs):
                     damageDealtToBuildings = grab_data_with_logging(logger, participant_data, 'damageDealtToBuildings')
                     damageDealtToObjectives = grab_data_with_logging(logger, participant_data, 'damageDealtToObjectives')
                     damageDealtToTurrets = grab_data_with_logging(logger, participant_data, 'damageDealtToTurrets')
+                    damage_stats = (physicalDamageDealt, physicalDamageDealtToChampions, physicalDamageTaken, magicDamageDealt, magicDamageDealtToChampions,
+                                    magicDamageTaken, trueDamageDealt, trueDamageDealtToChampions, trueDamageTaken, totalDamageDealt, totalDamageDealtToChampions,
+                                    totalDamageTaken, totalHeal, totalHealsOnTeammates, totalTimeCCDealt, largestCriticalStrike, damageSelfMitigated,
+                                    damageDealtToBuildings, damageDealtToObjectives, damageDealtToTurrets)
                     
-                    # MISC STATS ------------------------------------- 8
+                    # MISC STATS -------------------------------------
                     goldEarned = grab_data_with_logging(logger, participant_data, 'goldEarned')
                     goldSpent = grab_data_with_logging(logger, participant_data, 'goldSpent')
                     itemsPurchased = grab_data_with_logging(logger, participant_data, 'itemsPurchased')
@@ -156,51 +169,103 @@ def get_riot_data(**kwargs):
                     sightWardsBoughtInGame = grab_data_with_logging(logger, participant_data, 'sightWardsBoughtInGame')
                     wardsKilled = grab_data_with_logging(logger, participant_data, 'wardsKilled')
                     wardsPlaced = grab_data_with_logging(logger, participant_data, 'wardsPlaced')
+                    misc_stats = (goldEarned, goldSpent, itemsPurchased, visionScore, visionWardsBoughtInGame, sightWardsBoughtInGame, 
+                                  wardsKilled, wardsPlaced)
+                    
+                    game_stats_list.append(game_stats)
+                    champion_stats_list.append(champion_stats)
+                    kda_stats_list.append(kda_stats)
+                    damage_stats_list.append(damage_stats)
+                    misc_stats_list.append(misc_stats)
                     
                 else:
                     logger.error("Participants data not found or index out of range.")
             except Exception as e:
                 logger.error(f"An unexpected error occurred: {str(e)}")
-    return current_batch
+                
+    # Push data out
+    list_data = [game_stats_list, champion_stats_list, kda_stats_list, damage_stats_list, misc_stats_list]
+    kwargs['ti'].xcom_push(key='list_data', value=list_data)
 
-def extract_data_from_dict(batch_data_list, index):
-    for batch_list in batch_data_list:
-        
-    game_stats_batch_dict = batch_data_list[index]
-    for key, value in game_stats_batch_dict.items():
+def sep_data(list_data):
+    game_stats = list_data[0]
+    champion_stats = list_data[1]
+    kda_stats = list_data[2]
+    damage_stats = list_data[3]
+    misc_stats = list_data[4]
+    return game_stats, champion_stats, kda_stats, damage_stats, misc_stats
 
-def add_data_database(batch_data_list):
+def add_data_database(**kwargs):
+    # Grab data
+    ti = kwargs['ti']
+    list_data = ti.xcom_pull(task_ids='get_riot_data_task', key='list_data')
+    game_stats, champion_stats, kda_stats, damage_stats, misc_stats = sep_data(list_data)
+    
     hook = SqliteHook(sqlite_conn_id='lol_summoner_matches_sqlite')
     conn = hook.get_conn()
     cursor = conn.cursor()
     try:
-        # GAME STATS insert
-        insert_stmt = '''
-        INSERT INTO game_stats
-        (gameCreation,win,gameEndedInSurrender,timePlayed,gameMode,lane,role) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        '''.strip()
-        # Execute the GAME STATS insert statement
-        game_stats_batch_dict = batch_data_list[0]
-        for key, value in game_stats_batch_dict.items():
         
-        cursor.executemany(insert_stmt, batch_data)
+        for index in range(len(game_stats)):
+            # GAME STATS
+            insert_stmt = '''
+            INSERT INTO game_stats
+            (gameCreation,win,gameEndedInSurrender,timePlayed,gameMode,lane,role) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            '''.strip()
+            game_data = game_stats[index]
+            cursor.execute(insert_stmt, game_data)
+            game_id = cursor.lastrowid
             
+            # CHAMPION STATS
+            insert_stmt = '''
+            INSERT INTO champion_stats
+            (game_id,championName,champLevel) 
+            VALUES (?, ?, ?)
+            '''.strip()
+            champion_data = (game_id,) + champion_stats[index]
+            cursor.execute(insert_stmt, champion_data)
+            
+            # KDA STATS
+            insert_stmt = '''
+            INSERT INTO kda_stats
+            (game_id,kills,assists,deaths,totalTimeSpentDead,doubleKills,tripleKills,
+            quadraKills,pentaKills,totalMinionsKilled,totalAllyJungleMinionsKilled,dragonKills,
+            baronKills,largestMultiKill,largestKillingSpree) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            '''.strip()
+            kda_data = (game_id,) + kda_stats[index]
+            cursor.execute(insert_stmt, kda_data)
         
-        
-        
-        
-        
+            # DAMAGE STATS
+            insert_stmt = '''
+            INSERT INTO damage_stats
+            (game_id,physicalDamageDealt,physicalDamageDealtToChampions,physicalDamageTaken,
+            magicDamageDealt,magicDamageDealtToChampions,magicDamageTaken,trueDamageDealt,
+            trueDamageDealtToChampions,trueDamageTaken,totalDamageDealt,totalDamageDealtToChampions,
+            totalDamageTaken,totalHeal,totalHealsOnTeammates,totalTimeCCDealt,largestCriticalStrike,
+            damageSelfMitigated,damageDealtToBuildings,damageDealtToObjectives,damageDealtToTurrets) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            '''.strip()
+            damage_data = (game_id,) + damage_stats[index]
+            cursor.execute(insert_stmt, damage_data)
+            
+            # MISC STATS
+            insert_stmt = '''
+            INSERT INTO misc_stats
+            (game_id,goldEarned,goldSpent,itemsPurchased,visionScore,visionWardsBoughtInGame,
+            sightWardsBoughtInGame,wardsKilled,wardsPlaced) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            '''.strip()
+            misc_data = (game_id,) + misc_stats[index]
+            cursor.execute(insert_stmt, misc_data)
         
         # Commit the transaction
         conn.commit()
     except Exception as e:
-        # If an error occurs, rollback the transaction
-        conn.rollback()
         print("Error:", str(e))
-    
+        conn.rollback()
     finally:
-        # Close the cursor and connection
         cursor.close()
         conn.close()
 
