@@ -5,7 +5,7 @@ from airflow.providers.sqlite.hooks.sqlite import SqliteHook
 from datetime import datetime, timedelta
 import logging
 import requests
-import os
+from airflow.models import Variable
 
 def get_summoner_id(summoner_name, region, riot_api_key):
     url = f"https://{region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/{summoner_name}"
@@ -49,14 +49,14 @@ def grab_data_with_logging(logger, data, key):
 def get_riot_data(**kwargs):
     summoner_name = "boosblues"
     region = "na1"
-    riot_api_key = os.environ.get('RIOT_API_KEY')
+    riot_api_key = Variable.get("riot_api_key")
 
     # riot key error check
     if not riot_api_key:
         raise ValueError("RIOT_API_KEY environment variable is not set")
 
-    puuid = get_summoner_id(summoner_name, riot_api_key)
-    match_ids = get_matchlist(puuid, riot_api_key)
+    puuid = get_summoner_id(summoner_name, region, riot_api_key)
+    match_ids = get_matchlist(puuid, region, riot_api_key)
     
     # Set up logging
     logging.basicConfig(level=logging.INFO)
@@ -70,7 +70,7 @@ def get_riot_data(**kwargs):
     
     # need to handle some way of duplicate matches if i rerun the dag
     for match_id in match_ids:
-        match_details = get_match_details(match_id, riot_api_key)
+        match_details = get_match_details(match_id, region, riot_api_key)
         
         # DATA EXTRACTION ----------------------------------------------------------
         
@@ -285,7 +285,7 @@ with DAG(
     description='Riot API calls DAG',
     schedule_interval=timedelta(days=1),
     catchup=False,
-    tages=['example']
+    tags=['example']
 ) as dag:
     
     get_riot_match_history_data_task = PythonOperator(
@@ -306,6 +306,7 @@ with DAG(
         bash_command='cp /home/alextran/projects/SQLite-databases/summoner-game-data.db /mnt/c/Projects/airflow_projects/summoner_game_data/',
          # override the retries parameter with 3
         retries=3,
+        dag=dag,
     )
     
     get_riot_match_history_data_task >> add_riot_data_task >> copy_wsl_db_win
