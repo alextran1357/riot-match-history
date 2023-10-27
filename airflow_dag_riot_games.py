@@ -303,7 +303,7 @@ with DAG(
     copy_wsl_db_win = BashOperator(
         task_id='copy_file_wsl_win',
         depends_on_past=False,
-        bash_command='cp /home/yourusername/somefile.txt /mnt/c/Users/YourWindowsUsername/Desktop/',
+        bash_command='cp /home/alextran/projects/SQLite-databases/summoner-game-data.db /mnt/c/Projects/airflow_projects/summoner_game_data/',
          # override the retries parameter with 3
         retries=3,
     )
