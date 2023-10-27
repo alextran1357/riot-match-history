@@ -1,8 +1,8 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
+from airflow.providers.sqlite.hooks.sqlite import SqliteHook
 from datetime import datetime, timedelta
-import sqlite3
 import logging
 import requests
 import os
@@ -40,12 +40,11 @@ def get_match_details(match_id, region, riot_api_key):
     match_details = response.json()
     return match_details
 
-def grab_data_with_logging_dictionary(logger, dict, data, key):
+def grab_data_with_logging(logger, data, key):
     value = data.get(key)
     if value is None:
         logger.warning(f"The key {key} is missing from the data")
-    dict[key] = value
-    return dict
+    return value
 
 def get_riot_data(**kwargs):
     summoner_name = "boosblues"
@@ -97,86 +96,113 @@ def get_riot_data(**kwargs):
                 participant_data = info.get("participants", [])[index] if info else None
                 if participant_data:
                     # create new dictionaries
-                    game_stats = dict()
-                    champion_stats = dict()
-                    kda_stats = dict()
-                    damage_stats = dict()
-                    misc_stats = dict()
                     
                     # GAME STATS -------------------------------------
-                    game_stats = grab_data_with_logging_dictionary(logger, game_stats, participant_data, 'win')
-                    game_stats = grab_data_with_logging_dictionary(logger, game_stats, participant_data, 'gameEndedInSurrender')
-                    game_stats = grab_data_with_logging_dictionary(logger, game_stats, participant_data, 'timePlayed')
-                    game_stats = grab_data_with_logging_dictionary(logger, game_stats, participant_data, 'gameMode')
-                    game_stats = grab_data_with_logging_dictionary(logger, game_stats, participant_data, 'lane')
-                    game_stats = grab_data_with_logging_dictionary(logger, game_stats, participant_data, 'role')
+                    win = grab_data_with_logging(logger, participant_data, 'win')
+                    gameEndedInSurrender = grab_data_with_logging(logger, participant_data, 'gameEndedInSurrender')
+                    timePlayed = grab_data_with_logging(logger, participant_data, 'timePlayed')
+                    gameMode = grab_data_with_logging(logger, participant_data, 'gameMode')
+                    lane = grab_data_with_logging(logger, participant_data, 'lane')
+                    role = grab_data_with_logging(logger, participant_data, 'role')
                     
                     # CHAMPION STATS -------------------------------------
-                    champion_stats = grab_data_with_logging_dictionary(logger, champion_stats, participant_data, 'championName')
-                    champion_stats = grab_data_with_logging_dictionary(logger, champion_stats, participant_data, 'champLevel')
+                    championName = grab_data_with_logging(logger, participant_data, 'championName')
+                    champLevel = grab_data_with_logging(logger, participant_data, 'champLevel')
                     
                     # KILL/ASSIST/DEATH STATS -------------------------------------
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'kills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'assists')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'deaths')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'totalTimeSpentDead')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'doubleKills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'tripleKills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'quadraKills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'pentaKills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'totalMinionsKilled')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'totalAllyJungleMinionsKilled')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'dragonKills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'baronKills')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'largestMultiKill')
-                    kda_stats = grab_data_with_logging_dictionary(logger, kda_stats, participant_data, 'largestKillingSpree')
+                    kills = grab_data_with_logging(logger, participant_data, 'kills')
+                    assists = grab_data_with_logging(logger, participant_data, 'assists')
+                    deaths = grab_data_with_logging(logger, participant_data, 'deaths')
+                    totalTimeSpentDead = grab_data_with_logging(logger, participant_data, 'totalTimeSpentDead')
+                    doubleKills = grab_data_with_logging(logger, participant_data, 'doubleKills')
+                    tripleKills = grab_data_with_logging(logger, participant_data, 'tripleKills')
+                    quadraKills = grab_data_with_logging(logger, participant_data, 'quadraKills')
+                    pentaKills = grab_data_with_logging(logger, participant_data, 'pentaKills')
+                    totalMinionsKilled = grab_data_with_logging(logger, participant_data, 'totalMinionsKilled')
+                    totalAllyJungleMinionsKilled = grab_data_with_logging(logger, participant_data, 'totalAllyJungleMinionsKilled')
+                    dragonKills = grab_data_with_logging(logger, participant_data, 'dragonKills')
+                    baronKills = grab_data_with_logging(logger, participant_data, 'baronKills')
+                    largestMultiKill = grab_data_with_logging(logger, participant_data, 'largestMultiKill')
+                    largestKillingSpree = grab_data_with_logging(logger, participant_data, 'largestKillingSpree')
                     
                     # DAMAGE STATS -------------------------------------
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'physicalDamageDealt')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'physicalDamageDealtToChampions')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'physicalDamageTaken')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'magicDamageDealt')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'magicDamageDealtToChampions')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'magicDamageTaken')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'trueDamageDealt')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'trueDamageDealtToChampions')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'trueDamageTaken')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'totalDamageDealt')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'totalDamageDealtToChampions')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'totalDamageTaken')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'totalHeal')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'totalHealsOnTeammates')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'totalTimeCCDealt')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'largestCriticalStrike')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'damageSelfMitigated')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'damageDealtToBuildings')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'damageDealtToObjectives')
-                    damage_stats = grab_data_with_logging_dictionary(logger, damage_stats, participant_data, 'damageDealtToTurrets')
+                    physicalDamageDealt = grab_data_with_logging(logger, participant_data, 'physicalDamageDealt')
+                    physicalDamageDealtToChampions = grab_data_with_logging(logger, participant_data, 'physicalDamageDealtToChampions')
+                    physicalDamageTaken = grab_data_with_logging(logger, participant_data, 'physicalDamageTaken')
+                    magicDamageDealt = grab_data_with_logging(logger, participant_data, 'magicDamageDealt')
+                    magicDamageDealtToChampions = grab_data_with_logging(logger, participant_data, 'magicDamageDealtToChampions')
+                    magicDamageTaken = grab_data_with_logging(logger, participant_data, 'magicDamageTaken')
+                    trueDamageDealt = grab_data_with_logging(logger, participant_data, 'trueDamageDealt')
+                    trueDamageDealtToChampions = grab_data_with_logging(logger, participant_data, 'trueDamageDealtToChampions')
+                    trueDamageTaken = grab_data_with_logging(logger, participant_data, 'trueDamageTaken')
+                    totalDamageDealt = grab_data_with_logging(logger, participant_data, 'totalDamageDealt')
+                    totalDamageDealtToChampions = grab_data_with_logging(logger, participant_data, 'totalDamageDealtToChampions')
+                    totalDamageTaken = grab_data_with_logging(logger, participant_data, 'totalDamageTaken')
+                    totalHeal = grab_data_with_logging(logger, participant_data, 'totalHeal')
+                    totalHealsOnTeammates = grab_data_with_logging(logger, participant_data, 'totalHealsOnTeammates')
+                    totalTimeCCDealt = grab_data_with_logging(logger, participant_data, 'totalTimeCCDealt')
+                    largestCriticalStrike = grab_data_with_logging(logger, participant_data, 'largestCriticalStrike')
+                    damageSelfMitigated = grab_data_with_logging(logger, participant_data, 'damageSelfMitigated')
+                    damageDealtToBuildings = grab_data_with_logging(logger, participant_data, 'damageDealtToBuildings')
+                    damageDealtToObjectives = grab_data_with_logging(logger, participant_data, 'damageDealtToObjectives')
+                    damageDealtToTurrets = grab_data_with_logging(logger, participant_data, 'damageDealtToTurrets')
                     
                     # MISC STATS ------------------------------------- 8
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'goldEarned')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'goldSpent')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'itemsPurchased')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'visionScore')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'visionWardsBoughtInGame')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'sightWardsBoughtInGame')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'wardsKilled')
-                    misc_stats = grab_data_with_logging_dictionary(logger, misc_stats, participant_data, 'wardsPlaced')
+                    goldEarned = grab_data_with_logging(logger, participant_data, 'goldEarned')
+                    goldSpent = grab_data_with_logging(logger, participant_data, 'goldSpent')
+                    itemsPurchased = grab_data_with_logging(logger, participant_data, 'itemsPurchased')
+                    visionScore = grab_data_with_logging(logger, participant_data, 'visionScore')
+                    visionWardsBoughtInGame = grab_data_with_logging(logger, participant_data, 'visionWardsBoughtInGame')
+                    sightWardsBoughtInGame = grab_data_with_logging(logger, participant_data, 'sightWardsBoughtInGame')
+                    wardsKilled = grab_data_with_logging(logger, participant_data, 'wardsKilled')
+                    wardsPlaced = grab_data_with_logging(logger, participant_data, 'wardsPlaced')
                     
-                    # insert batch
-                    batch = [game_stats, champion_stats, kda_stats, damage_stats, misc_stats]
-                    current_batch.append(batch)
                 else:
                     logger.error("Participants data not found or index out of range.")
             except Exception as e:
                 logger.error(f"An unexpected error occurred: {str(e)}")
     return current_batch
 
-def add_data_database(**kwargs):
-    task_instance = kwargs['ti']
-    data = task_instance.xcom_pull(task_ids='get_riot_data_task')
-    # Do something with the data
-    print(data)
+def extract_data_from_dict(batch_data_list, index):
+    for batch_list in batch_data_list:
+        
+    game_stats_batch_dict = batch_data_list[index]
+    for key, value in game_stats_batch_dict.items():
+
+def add_data_database(batch_data_list):
+    hook = SqliteHook(sqlite_conn_id='lol_summoner_matches_sqlite')
+    conn = hook.get_conn()
+    cursor = conn.cursor()
+    try:
+        # GAME STATS insert
+        insert_stmt = '''
+        INSERT INTO game_stats
+        (gameCreation,win,gameEndedInSurrender,timePlayed,gameMode,lane,role) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        '''.strip()
+        # Execute the GAME STATS insert statement
+        game_stats_batch_dict = batch_data_list[0]
+        for key, value in game_stats_batch_dict.items():
+        
+        cursor.executemany(insert_stmt, batch_data)
+            
+        
+        
+        
+        
+        
+        
+        # Commit the transaction
+        conn.commit()
+    except Exception as e:
+        # If an error occurs, rollback the transaction
+        conn.rollback()
+        print("Error:", str(e))
+    
+    finally:
+        # Close the cursor and connection
+        cursor.close()
+        conn.close()
 
 # START ---------------------------------------------------------------------------------------------------
 
